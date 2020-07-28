@@ -71,7 +71,13 @@ const CreateWallet = (props) => {
   let fiatBalance = 0
   let changePercent = 0
 
-  const widgetCurrencies = ['BTC', 'BTC (SMS-Protected)', 'BTC (PIN-Protected)', 'BTC (Multisig)', 'ETH']
+  const widgetCurrencies = [
+    'BTC',
+    'BTC (SMS-Protected)',
+    'BTC (PIN-Protected)',
+    'BTC (Multisig)',
+    'ETH',
+  ]
 
   if (isWidgetBuild) {
     if (window.widgetERC20Tokens && Object.keys(window.widgetERC20Tokens).length) {
@@ -84,17 +90,6 @@ const CreateWallet = (props) => {
     }
   }
 
-  const [multiplier, setMultiplier] = useState(0)
-
-  const getFiats = async () => {
-    const { fiatsRates } = await actions.user.getFiats()
-
-    if (fiatsRates) {
-      const fiatRate = fiatsRates.find(({ key }) => key === activeFiat)
-      setMultiplier(fiatRate.value)
-    }
-  }
-
   if (currencyBalance) {
     currencyBalance.forEach(async item => {
       if ((!isWidgetBuild || widgetCurrencies.includes(item.name)) && item.infoAboutCurrency && item.balance !== 0) {
@@ -103,20 +98,15 @@ const CreateWallet = (props) => {
         }
 
         btcBalance += item.balance * item.infoAboutCurrency.price_btc
-        fiatBalance += item.balance * item.infoAboutCurrency.price_usd * multiplier
+        fiatBalance += item.balance * ((item.infoAboutCurrency.price_fiat) ? item.infoAboutCurrency.price_fiat : 1)
       }
     })
   }
-
-  useEffect(() => {
-    getFiats()
-  }, [activeFiat])
 
   useEffect(
     () => {
       const singleCurrecny = pathname.split('/')[2]
 
-      getFiats()
       if (singleCurrecny) {
 
         const hiddenList = localStorage.getItem('hiddenCoinsList')
@@ -137,7 +127,13 @@ const CreateWallet = (props) => {
   )
 
   useEffect(() => {
-    const widgetCurrencies = ['BTC', 'BTC (SMS-Protected)', 'BTC (PIN-Protected)', 'BTC (Multisig)', 'ETH']
+    const widgetCurrencies = [
+      'BTC',
+      'BTC (SMS-Protected)',
+      'BTC (PIN-Protected)',
+      'BTC (Multisig)',
+      'ETH',
+    ]
 
     if (isWidgetBuild) {
       if (window.widgetERC20Tokens && Object.keys(window.widgetERC20Tokens).length) {
@@ -157,10 +153,8 @@ const CreateWallet = (props) => {
             changePercent = item.infoAboutCurrency.percent_change_1h
           }
 
-          const multiplier = getFiats()
-
           btcBalance += item.balance * item.infoAboutCurrency.price_btc
-          fiatBalance += item.balance * item.infoAboutCurrency.price_usd * multiplier
+          fiatBalance += item.balance * ((item.infoAboutCurrency.price_fiat) ? item.infoAboutCurrency.price_fiat : 1)
         }
       })
     }
@@ -301,9 +295,9 @@ const CreateWallet = (props) => {
           break
         case 'multisignature':
           if (currencies.BTC) {
-            actions.core.markCoinAsVisible('BTC (Multisig)')
             actions.modals.open(constants.modals.MultisignJoinLink, {
               callback: () => {
+                actions.core.markCoinAsVisible('BTC (Multisig)')
                 handleClick()
               },
               showCloseButton: false,

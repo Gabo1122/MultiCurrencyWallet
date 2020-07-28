@@ -35,6 +35,12 @@
   bottom: -2px;
 }
 
+.txWaitConfirm {
+  padding-right: 10px;
+  color: #6144e5;
+  cursor: pointer;
+}
+
 .disableWth {
   @include inline-block;
   height: 40px;
@@ -442,9 +448,11 @@ tr button[disabled]:hover {
     }
   }
 
-  .unconfirmedBalance {
+  .unconfirmedBalance,
+  .assetsTableValue {
     background: #222528;
   }
+
 }
 
 .assetsTableCurrency {
@@ -475,17 +483,8 @@ tr button[disabled]:hover {
   margin-left: 2px;
 }
 
-.addressStyle {
-  font-size: 12px;
-  margin-left: 10px;
-  color: rgb(142, 154, 163);
-  margin-top: 1px;
-  position: absolute;
-  left: 46px;
-  bottom: -13px;
-  cursor: pointer;
-}
-
+.addressStyle,
+.showAddressStyle,
 .statusStyle {
   font-size: 12px;
   margin-left: 10px;
@@ -496,6 +495,11 @@ tr button[disabled]:hover {
   bottom: -13px;
 }
 
+.addressStyle,
+.showAddressStyle {
+  cursor: pointer;
+}
+
 .assetsTableValue {
   position: absolute;
   right: 48px;
@@ -503,6 +507,7 @@ tr button[disabled]:hover {
   font-size: 12px;
   font-weight: 500;
   color: #8e9aa3;
+  background: #fff;
 
   img {
     margin-top: -3px;

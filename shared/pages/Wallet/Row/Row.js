@@ -26,6 +26,10 @@ const langLabels = defineMessages({
     id: 'RowWallet181',
     defaultMessage: `Unconfirmed balance`,
   },
+  msConfirmCount: {
+    id: 'RowWallet_MsConfirmCountMobile',
+    defaultMessage: `{count} tx wait your confirm`,
+  },
 })
 
 @injectIntl
@@ -39,13 +43,15 @@ const langLabels = defineMessages({
         ethData: {
           address,
           privateKey,
-        }
+        },
+        multisigStatus,
       }
     },
     { currency }
   ) => ({
     activeFiat,
     decline: rememberedOrders.savedOrders,
+    multisigStatus,
     ethDataHelper: {
       address,
       privateKey,
@@ -83,11 +89,7 @@ export default class Row extends Component {
   }
 
   async componentDidMount() {
-    const multiplier = await this.getFiats()
-
     window.addEventListener('resize', this.handleSliceAddress)
-
-    this.setState(() => ({ multiplier }))
   }
 
   componentDidUpdate(prevProps, prevState) {
@@ -204,17 +206,6 @@ export default class Row extends Component {
       intl: { locale },
     } = this.props
 
-    const {
-      Withdraw,
-      WithdrawMultisigSMS,
-      WithdrawMultisigUser,
-    } = constants.modals
-
-    let withdrawModalType = Withdraw
-    if (currency === 'BTC (SMS-Protected)')
-      withdrawModalType = WithdrawMultisigSMS
-    if (currency === 'BTC (Multisig)') withdrawModalType = WithdrawMultisigUser
-
     let targetCurrency = currency
     switch (currency.toLowerCase()) {
       case 'btc (multisig)':
@@ -232,6 +223,27 @@ export default class Row extends Component {
         (isToken ? '/token' : '') + `/${targetCurrency}/${address}/send`
       )
     )
+  }
+
+  handleHowToExport = () => {
+    const { itemData } = this.props
+
+    if (itemData.isUserProtected) {
+      console.log('Not implements')
+      return
+    }
+    if (itemData.isSmsProtected) {
+      this.handleHowExportSMS()
+      return
+    }
+    if (itemData.isPinProtected) {
+      this.handleHowExportPIN()
+      return
+    }
+
+    actions.modals.open(constants.modals.HowToExportModal, {
+      item: itemData,
+    })
   }
 
   handleHowExportSMS = () => {
@@ -517,13 +529,6 @@ export default class Row extends Component {
   }
 
 
-  getFiats = async () => {
-    const { activeFiat } = this.props
-    const { fiatsRates } = await actions.user.getFiats()
-
-    const fiatRate = fiatsRates.find(({ key }) => key === activeFiat)
-    return fiatRate.value
-  }
 
   getCustomRate = (cur) => {
     const wTokens = window.widgetERC20Tokens
@@ -532,13 +537,16 @@ export default class Row extends Component {
     return dataobj ? (wTokens[dataobj] || { customEcxchangeRate: null }).customEcxchangeRate : null
   }
 
+  handleShowMnemonic = () => {
+    actions.modals.open(constants.modals.SaveMnemonicModal)
+  }
+
   render() {
     const {
       isBalanceFetching,
       // @ToDo Remove this
       // tradeAllowed,
       isBalanceEmpty,
-      multiplier
     } = this.state
 
     const {
@@ -546,7 +554,8 @@ export default class Row extends Component {
       intl: { locale },
       intl,
       activeFiat,
-      isDark
+      isDark,
+      multisigStatus,
     } = this.props
 
     const {
@@ -566,10 +575,8 @@ export default class Row extends Component {
 
     const isWidgetBuild = config && config.isWidget
 
-    if (this.getCustomRate(currency)) {
-      currencyFiatBalance = BigNumber(balance).multipliedBy(this.getCustomRate(currency)).multipliedBy(multiplier || 1)
-    } else if (itemData.infoAboutCurrency) {
-      currencyFiatBalance = BigNumber(balance).multipliedBy(itemData.infoAboutCurrency.price_usd).multipliedBy(multiplier || 1)
+    if (itemData.infoAboutCurrency && itemData.infoAboutCurrency.price_fiat) {
+      currencyFiatBalance = BigNumber(balance).multipliedBy(itemData.infoAboutCurrency.price_fiat)
     }
 
     let hasHowToWithdraw = false
@@ -582,6 +589,9 @@ export default class Row extends Component {
       hasHowToWithdraw = true
 
     const isSafari = 'safari' in window
+
+    const mnemonic = localStorage.getItem(constants.privateKeyNames.twentywords)
+    const mnemonicSaved = (mnemonic === `-`)
 
     let dropDownMenuItems = [
       {
@@ -617,7 +627,7 @@ export default class Row extends Component {
         action: this.handleWithdraw,
         disabled: isBalanceEmpty,
       },
-      {
+      !config.opts.exchangeDisabled && {
         id: 1004,
         title: (
           <FormattedMessage
@@ -629,15 +639,6 @@ export default class Row extends Component {
         disabled: false,
       },
       {
-        id: 1005,
-        title: (
-          <FormattedMessage id="WalletRow_Menu_Buy" defaultMessage="Buy" />
-        ),
-        action: this.goToBuy,
-        disabled: false,
-        hidden: this.props.currency.currency === 'BTC' ? true : false,
-      },
-      {
         id: 1003,
         title: (
           <FormattedMessage
@@ -646,7 +647,7 @@ export default class Row extends Component {
           />
         ),
         action: this.goToHistory,
-        disabled: false,
+        disabled: !mnemonicSaved,
       },
       !isSafari && {
         id: 1012,
@@ -657,7 +658,7 @@ export default class Row extends Component {
           />
         ),
         action: this.copy,
-        disabled: false,
+        disabled: !mnemonicSaved,
       },
       !config.opts.hideShowPrivateKey && {
         id: 1012,
@@ -670,28 +671,17 @@ export default class Row extends Component {
         action: this.copyPrivateKey,
         disabled: false,
       },
-      this.props.itemData.isPinProtected && {
+      /*!this.props.itemData.isUserProtected && {
         id: 3012,
         title: (
           <FormattedMessage
-            id="WalletRow_Menu_HowExportPin"
+            id="WalletRow_Menu_HowExportWallet"
             defaultMessage="How to export wallet"
           />
         ),
-        action: this.handleHowExportPIN,
+        action: this.handleHowToExport,
         disabled: false,
-      },
-      this.props.itemData.isSmsProtected && {
-        id: 3012,
-        title: (
-          <FormattedMessage
-            id="WalletRow_Menu_HowExportSms"
-            defaultMessage="How to export wallet"
-          />
-        ),
-        action: this.handleHowExportSMS,
-        disabled: false,
-      },
+      },*/
     ].filter((el) => el)
 
     dropDownMenuItems.push({
@@ -707,7 +697,7 @@ export default class Row extends Component {
     if (currencyView == 'BTC (SMS-Protected)') currencyView = 'BTC'
     if (currencyView == 'BTC (PIN-Protected)') currencyView = 'BTC'
 
-    if (currencyView !== 'BTC') {
+    if (currencyView !== 'BTC' && !config.opts.exchangeDisabled) {
       dropDownMenuItems.push({
         id: 1005,
         title: (
@@ -781,6 +771,13 @@ export default class Row extends Component {
         },
       ]
     }
+
+    const msConfirmCount = (
+      itemData.isUserProtected
+      && multisigStatus
+      && multisigStatus[itemData.address]
+      && multisigStatus[itemData.address].count
+    ) ? multisigStatus[itemData.address].count : false
 
     if (
       this.props.itemData.isSmsProtected &&
@@ -858,7 +855,7 @@ export default class Row extends Component {
         <td styleName={`assetsTableRow ${isDark ? 'dark' : ''}`}>
           <div styleName="assetsTableCurrency">
             <a
-              onClick={this.goToCurrencyHistory}
+              onClick={mnemonicSaved ? this.goToCurrencyHistory : () => {}}
               title={`Online ${fullName} wallet`}
             >
               <Coin className={styles.assetsTableIcon} name={currency} />
@@ -866,7 +863,7 @@ export default class Row extends Component {
             <div styleName="assetsTableInfo">
               <div styleName="nameRow">
                 <a
-                  onClick={this.goToCurrencyHistory}
+                  onClick={mnemonicSaved ? this.goToCurrencyHistory : () => {}}
                   title={`Online ${fullName} wallet`}
                 >
                   {fullName}
@@ -942,30 +939,44 @@ export default class Row extends Component {
                 </Fragment>
               )}
             </span>
-            {isMobile ? (
-              <Fragment>
-                {!statusInfo ? (
-                  <PartOfAddress {...itemData} onClick={this.goToCurrencyHistory} />
-                ) : (
-                    <p styleName="statusStyle">{statusInfo}</p>
-                  )}
-              </Fragment>
-            ) : (
-                <Fragment>
-                  {!statusInfo ? (
-                    <p styleName="addressStyle">{itemData.address}</p>
-                  ) : (
-                      <p styleName="addressStyle">{statusInfo}</p>
-                    )}
-                </Fragment>
-              )}
 
-            {currencyFiatBalance && showBalance && !balanceError ? (
+            <Fragment>
+              {statusInfo ?
+                <p styleName="statusStyle">{statusInfo}</p>
+                :
+                !mnemonicSaved ?
+                  <p styleName="showAddressStyle" onClick={this.handleShowMnemonic}>
+                    <FormattedMessage
+                      id="WalletRow_ShowAddress"
+                      defaultMessage="Show address"
+                    />
+                  </p>
+                  :
+                  isMobile ?
+                    <PartOfAddress {...itemData} onClick={this.goToCurrencyHistory} />
+                    :
+                    <p styleName="addressStyle">{itemData.address}</p>
+              }
+            </Fragment>
+
+            {(currencyFiatBalance && showBalance && !balanceError) || msConfirmCount ? (
               <div styleName="assetsTableValue">
-                {/* <img src={dollar} /> */}
-                <p>{BigNumber(currencyFiatBalance).dp(2, BigNumber.ROUND_FLOOR).toString()}</p>
-                <strong>{activeFiat}</strong>
-                {/* {inneedData && <span>   {`${inneedData.change} %`} </span>} */}
+                {msConfirmCount && !isMobile && (
+                  <p styleName="txWaitConfirm" onClick={this.goToCurrencyHistory}>
+                    {intl.formatMessage(
+                      langLabels.msConfirmCount,
+                      {
+                        count: msConfirmCount,
+                      }
+                    )}
+                  </p>
+                )}
+                {currencyFiatBalance && showBalance && !balanceError && (
+                  <>
+                    <p>{BigNumber(currencyFiatBalance).dp(2, BigNumber.ROUND_FLOOR).toString()}</p>
+                    <strong>{activeFiat}</strong>
+                  </>
+                )}
               </div>
             ) : (
                 ''

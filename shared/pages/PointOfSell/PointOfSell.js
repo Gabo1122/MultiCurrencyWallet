@@ -99,7 +99,7 @@ const isDark = localStorage.getItem(constants.localStorage.isDark)
   addPartialItems,
   history: { swapHistory },
   core: { orders, hiddenCoinsList },
-  user: { ethData, btcData, tokensData, activeFiat },
+  user: { ethData, btcData, tokensData, activeFiat, ...rest },
 }) => ({
   activeFiat,
   currencies: isExchangeAllowed(currencies.partialItems),
@@ -113,6 +113,12 @@ const isDark = localStorage.getItem(constants.localStorage.isDark)
   hiddenCoinsList,
   userEthAddress: ethData.address,
   swapHistory,
+  usersData: [
+    ethData,
+    btcData,
+    ...Object.values(tokensData).filter(({ address }) => address),
+    ...Object.values(rest).filter(({ address }) => address)
+  ],
 }))
 @CSSModules(styles, { allowMultiple: true })
 export default class PartialClosure extends Component {
@@ -120,8 +126,6 @@ export default class PartialClosure extends Component {
   static defaultProps = {
     orders: [],
   }
-
-  static fiatRates = {}
 
   isPeerBanned(peerID) {
     if (bannedPeers[peerID]
@@ -155,7 +159,7 @@ export default class PartialClosure extends Component {
     super()
 
     this.onRequestAnswer = (newOrder, isAccepted) => { }
-
+    this.fiatRates = {}
     const isRootPage = history.location.pathname === '/' || history.location.pathname === '/ru'
     const { url, params: { buy, sell } } = match || { params: { buy: 'btc', sell: 'usdt' } }
 
@@ -251,6 +255,10 @@ export default class PartialClosure extends Component {
     this.setEstimatedFeeValues(estimatedFeeValues)
 
     document.addEventListener('scroll', this.rmScrollAdvice)
+
+    setTimeout(() => {
+      this.setState(() => ({ isFullLoadingComplite: true }))
+    }, 60 * 1000)
   }
 
   rmScrollAdvice = () => {
@@ -384,12 +392,43 @@ export default class PartialClosure extends Component {
     }
   }
 
-  handleGoTrade = () => {
-    const { intl: { locale }, decline } = this.props
-    const {
-      haveCurrency,
-      destinationSelected,
-    } = this.state
+  handleGoTrade = async () => {
+    const { decline, usersData } = this.props
+    const { haveAmount, haveCurrency, destinationSelected } = this.state
+
+
+    const haveCur = haveCurrency.toUpperCase()
+    const { balance, address } = usersData.find(({ currency }) => currency.toUpperCase() === haveCur.toUpperCase())
+
+    if (haveCur !== "BTC" && balance < haveAmount) {
+      const hiddenCoinsList = await actions.core.getHiddenCoins()
+      const isDidntActivateWallet = hiddenCoinsList.find(el => haveCur.toUpperCase() === el.toUpperCase())
+
+      actions.modals.open(constants.modals.AlertWindow, {
+        title: !isDidntActivateWallet ?
+          <FormattedMessage
+            id="AlertOrderNonEnoughtBalanceTitle"
+            defaultMessage="Not enough balance."
+          /> :
+          <FormattedMessage
+            id="walletDidntCreateTitle"
+            defaultMessage="Wallet does not exist"
+          />,
+        currency: haveCur,
+        address,
+        actionType: !isDidntActivateWallet ? "deposit" : "createWallet",
+        message: !isDidntActivateWallet ?
+          <FormattedMessage
+            id="AlertOrderNonEnoughtBalance"
+            defaultMessage="Please top up your balance before you start the swap."
+          /> :
+          <FormattedMessage
+            id="walletDidntCreateTitle"
+            defaultMessage="Create wallet"
+          />
+      })
+      return
+    }
 
     if (!destinationSelected) {
       this.setState({
@@ -544,9 +583,10 @@ export default class PartialClosure extends Component {
   setOrders = async () => {
     const { filteredOrders, haveAmount, exHaveRate, exGetRate } = this.state
 
-    if (filteredOrders.length === 0) {
+    if (!filteredOrders.length) {
       this.setState(() => ({
         isNonOffers: true,
+        isNoAnyOrders: true,
         maxAmount: 0,
         getAmount: 0,
         maxBuyAmount: BigNumber(0),
@@ -580,6 +620,7 @@ export default class PartialClosure extends Component {
     if (didFound) {
       this.setState(() => ({
         isSearching: false,
+        isNoAnyOrders: false,
       }))
     }
   }
@@ -977,8 +1018,8 @@ export default class PartialClosure extends Component {
   render() {
     const { currencies, addSelectedItems, currenciesData, tokensData, intl: { locale, formatMessage }, userEthAddress, isOnlyForm, activeFiat } = this.props
     const { haveCurrency, getCurrency, isNonOffers, redirect, orderId, isSearching, desclineOrders, openScanCam,
-      isDeclinedOffer, isFetching, maxAmount, customWalletUse, exHaveRate, exGetRate,
-      maxBuyAmount, getAmount, goodRate, isShowBalance, estimatedFeeValues, haveAmount,
+      isDeclinedOffer, isFetching, maxAmount, customWalletUse, exHaveRate, exGetRate, isNoAnyOrders,
+      maxBuyAmount, getAmount, goodRate, isShowBalance, estimatedFeeValues, haveAmount, isFullLoadingComplite,
       destinationSelected,
       destinationError,
       customWallet,
@@ -1130,18 +1171,25 @@ export default class PartialClosure extends Component {
           {!oneCryptoCost.isFinite() && !isNonOffers && (
             <FormattedMessage id="PartialPriceCalc" defaultMessage="Calc price" />
           )}
-          {maxAmount > 0 && isNonOffers && linked.haveAmount.value > 0 && (
+          {isNoAnyOrders && linked.haveAmount.value > 0 && isFullLoadingComplite && <Fragment>
+            <p styleName="error">
+              <FormattedMessage
+                id="PartialPriceNoOrdersReduce"
+                defaultMessage="No orders found, try later"
+              />
+            </p>
+          </Fragment>}
+          {!isNoAnyOrders && maxAmount > 0 && isNonOffers && linked.haveAmount.value > 0 && (
             <Fragment>
-              <p styleName="error" className={isWidget ? 'error' : ''} >
-                <FormattedMessage id="PartialPriceNoOrdersReduce" defaultMessage="No orders found, try to reduce the amount" />
-              </p>
-              <p styleName="error" className={isWidget ? 'error' : ''} >
-                <FormattedMessage id="PartialPriceReduceMin" defaultMessage="Maximum available amount for buy: " />
-                {maxAmount}{' '}{getCurrency.toUpperCase()}
-              </p>
-              <p styleName="error" className={isWidget ? 'error' : ''} >
-                <FormattedMessage id="PartialPriceSellMax" defaultMessage="Maximum available amount for sell: " />
-                {maxBuyAmount.toNumber()}{' '}{haveCurrency.toUpperCase()}
+              <p styleName="error">
+                <FormattedMessage
+                  id="PartialPriceNoOrdersReduceAllInfo"
+                  defaultMessage="This trade amount is too high for present market liquidity. Please reduce amount to {maxForSell}. "
+                  values={{
+                    maxForBuy: `${maxAmount} ${getCurrency.toUpperCase()}`,
+                    maxForSell: `${maxBuyAmount.toNumber()} ${haveCurrency.toUpperCase()}`
+                  }}
+                />
               </p>
             </Fragment>
           )}
@@ -1183,7 +1231,7 @@ export default class PartialClosure extends Component {
                 <div>
                   <FormattedMessage
                     id="PartialFeeValueWarn"
-                    defaultMessage="The maximum amount you can sell is {maximumAmount}. Since will have to pay an additional miner fee up to {estimatedFeeValue} {haveCurrency}"
+                    defaultMessage="The maximum amount you can sell is {maximumAmount} {haveCurrency}. Miner fee up to {estimatedFeeValue} {haveCurrency}"
                     values={{
                       haveCurrency: haveCurrency.toUpperCase(),
                       estimatedFeeValue: estimatedFeeValues[haveCurrency],

@@ -10,7 +10,7 @@ import { connect } from "redaction";
 import links from "helpers/links";
 import actions from "redux/actions";
 import { constants } from "helpers";
-import config from "app-config";
+import config from 'helpers/externalConfig'
 import { injectIntl } from "react-intl";
 
 import CSSModules from "react-css-modules";
@@ -36,7 +36,7 @@ import { WidgetHeader } from "./WidgetHeader";
 import { Switcher } from "./Switcher"
 
 
-const isWidgetBuild = config && config.isWidget;
+const isWidgetBuild = config && config.isWidget
 const isDark = localStorage.getItem(constants.localStorage.isDark)
 
 @injectIntl
@@ -77,18 +77,7 @@ export default class Header extends Component {
     } = props;
     const { exchange, home, wallet, history: historyLink } = links;
     const { products, invest, history } = messages;
-    const {
-      lastCheckBalance,
-      wasCautionPassed,
-      isWalletCreate,
-    } = constants.localStorage;
-
-    if (
-      localStorage.getItem(lastCheckBalance) ||
-      localStorage.getItem(wasCautionPassed)
-    ) {
-      localStorage.setItem(isWalletCreate, true);
-    }
+    const { isWalletCreate } = constants.localStorage;
 
     const dinamicPath = pathname.includes(exchange)
       ? `${unlocalisedUrl(intl.locale, pathname)}`
@@ -113,7 +102,7 @@ export default class Header extends Component {
           icon: "products",
           currentPageFlag: true,
         },
-        {
+        !config.opts.exchangeDisabled && {
           title: intl.formatMessage(invest),
           link: "exchange/btc-to-usdt",
           icon: "invest",
@@ -457,31 +446,33 @@ export default class Header extends Component {
       />
     );
 
-    const logoRenderer =
-      window.location.hostname === "localhost" ||
-        window.location.hostname === "swaponline.github.io" ||
-        window.location.hostname === "swaponline.io" ? (
-          <>
-            <LogoTooltip withLink isColored isExchange={isWalletPage} />
-            <Switcher themeSwapAnimation={themeSwapAnimation} onClick={this.handleSetDark} />
-          </>
-        ) : (
-          <div styleName="flexebleHeader">
-            {window.logoUrl !== "#" && (
-              <div styleName="imgWrapper">
-                {hasOwnLogoLink ? (
-                  <a href={onLogoClickLink}>{imgNode}</a>
-                ) : (
-                    <Link to={onLogoClickLink}>{imgNode}</Link>
-                  )}
-              </div>
-            )}
-            <div styleName="rightArea">
-              {isWidgetBuild && <WidgetHeader />}
-              <Switcher withExit themeSwapAnimation={themeSwapAnimation} onClick={this.handleSetDark} />
-            </div>
+    const isOurMainDomain = [
+      'localhost',
+      'swaponline.github.io',
+      'swaponline.io'
+    ].includes(window.location.hostname)
+
+    const logoRenderer = isOurMainDomain ?
+      <>
+        <LogoTooltip withLink isColored isExchange={isWalletPage} />
+        <Switcher themeSwapAnimation={themeSwapAnimation} onClick={this.handleSetDark} />
+      </>
+      :
+      <div styleName="flexebleHeader">
+        {window.logoUrl !== "#" && (
+          <div styleName="imgWrapper">
+            {hasOwnLogoLink ? (
+              <a href={onLogoClickLink}>{imgNode}</a>
+            ) : (
+                <Link to={onLogoClickLink}>{imgNode}</Link>
+              )}
           </div>
-        );
+        )}
+        <div styleName="rightArea">
+          {isWidgetBuild && <WidgetHeader />}
+          <Switcher withExit themeSwapAnimation={themeSwapAnimation} onClick={this.handleSetDark} />
+        </div>
+      </div>
 
     // if (config && config.isWidget && !config.isFullBuild) {
     //   return <>
@@ -502,7 +493,7 @@ export default class Header extends Component {
 
     if (isMobile && window.logoUrl) {
       return (
-        <div className="data-tut-widget-tourFinish" styleName="header-mobile">
+        <div className="data-tut-widget-tourFinish" id="header-mobile" styleName="header-mobile">
           {logoRenderer}
           {createdWalletLoader && (
             <div styleName="loaderCreateWallet">
@@ -534,7 +525,7 @@ export default class Header extends Component {
 
     if (isMobile) {
       return (
-        <div styleName="header-mobile">
+        <div id="header-mobile" styleName="header-mobile">
           {createdWalletLoader && (
             <div styleName="loaderCreateWallet">
               <Loader

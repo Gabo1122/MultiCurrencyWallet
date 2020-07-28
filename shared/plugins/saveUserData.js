@@ -1,12 +1,22 @@
 import axios from 'axios'
 import { constants, localStorage } from 'helpers'
+import config from 'helpers/externalConfig'
 
 
-const saveUserData = function saveUserData() {
+const saveUserData = function saveUserData(data) {
+  const { key, value } = data
+  window.localStorage.setItem(key, JSON.stringify(value))
+
   const interval = window.setInterval(() => {
     const isWalletCreate = localStorage.getItem(constants.localStorage.isWalletCreate)
 
-    if (isWalletCreate && window.userDataPluginApi && window.WPuserUid) {
+    if (isWalletCreate
+      && config
+      && config.opts
+      && config.opts.plugins
+      && config.opts.plugins.userDataPluginApi
+      && window.WPuserUid
+    ) {
       const { user } = localStorage.getItem('redux-store')
 
       const curKeys = Object.keys(user).filter(el => {
@@ -40,7 +50,7 @@ const saveUserData = function saveUserData() {
       })
 
       if (data && Object.values(data).length) {
-        axios.post(window.userDataPluginApi, {
+        axios.post(config.opts.plugins.userDataPluginApi, {
           ...data,
           WPuserUid: window.WPuserUid,
         })
